@@ -18,7 +18,7 @@ class AppContainer(context: Context) {
     private val cookieManager = CookieManager()
 
     private val logging = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BASIC
+        level = HttpLoggingInterceptor.Level.BODY
     }
 
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()

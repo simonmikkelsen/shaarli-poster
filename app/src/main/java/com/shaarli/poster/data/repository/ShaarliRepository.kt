@@ -10,6 +10,7 @@ import com.shaarli.poster.data.storage.DraftStore
 import com.shaarli.poster.data.storage.SettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 class ShaarliRepository(
     private val settingsStore: SettingsStore,
@@ -69,23 +70,28 @@ class ShaarliRepository(
         payload: LinkPayload,
         queueOnFail: Boolean
     ): PostResult {
-        if (!networkStatus.isOnline()) {
-            val draft = if (queueOnFail) draftStore.saveDraft(payload) else null
-            return PostResult(
-                status = PostStatus.Queued,
-                message = if (draft != null) "Offline; queued draft ${draft.id.take(8)}" else "Offline"
-            )
-        }
-
-        val response = client.createLink(settings, payload)
-        return if (response.isSuccess) {
-            PostResult(PostStatus.Posted, "Link posted successfully")
-        } else {
-            val message = response.exceptionOrNull()?.message ?: "Failed to post link"
-            if (queueOnFail) {
-                draftStore.saveDraft(payload)
+        val response = runCatching { client.createLink(settings, payload) }
+        return response.fold(
+            onSuccess = { result ->
+                result.fold(
+                    onSuccess = { PostResult(PostStatus.Posted, "Link posted successfully") },
+                    onFailure = { error ->
+                        if (queueOnFail) {
+                            draftStore.saveDraft(payload)
+                        }
+                        PostResult(PostStatus.Failed, error.message ?: "Failed to post link")
+                    }
+                )
+            },
+            onFailure = { throwable ->
+                val message = throwable.message ?: "Network error"
+                if (queueOnFail && throwable is IOException) {
+                    val draft = draftStore.saveDraft(payload)
+                    PostResult(PostStatus.Queued, "Network issue; queued draft ${draft.id.take(8)}")
+                } else {
+                    PostResult(PostStatus.Failed, message)
+                }
             }
-            PostResult(PostStatus.Failed, message)
-        }
+        )
     }
 }

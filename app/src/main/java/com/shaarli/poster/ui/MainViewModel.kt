@@ -180,7 +180,7 @@ class MainViewModel(
 
     fun postLink() {
         val payload = buildPayloadOrFail() ?: return
-        updateShareForm { it.copy(status = ShareStatus.Posting, errorMessage = null, infoMessage = null) }
+        updateShareForm { it.copy(status = ShareStatus.Posting, errorMessage = null, infoMessage = "Posting…") }
         viewModelScope.launch {
             val result = repository.postLink(_uiState.value.settings, payload)
             refreshDrafts()
@@ -188,7 +188,7 @@ class MainViewModel(
                 val shareForm = when (result.status) {
                     PostStatus.Posted -> ShareFormState(
                         status = ShareStatus.Success,
-                        infoMessage = "Posted successfully"
+                        infoMessage = result.message ?: "Posted successfully"
                     )
                     PostStatus.Queued -> ShareFormState(
                         status = ShareStatus.Success,

@@ -12,6 +12,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 
 class ShaarliClient(
@@ -44,10 +45,10 @@ class ShaarliClient(
                 put("url", payload.url)
                 put("title", payload.title)
                 put("description", payload.description)
-                put("tags", payload.tags)
+                put("tags", JSONArray(payload.tags))
                 put("private", payload.isPrivate)
             }
-            val body = json.toString().toRequestBody("application/json".toMediaType())
+            val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
             val request = Request.Builder()
                 .url(url)
                 .post(body)
