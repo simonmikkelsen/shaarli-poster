@@ -61,11 +61,7 @@ class ShaarliRepository(
         if (!networkStatus.isOnline()) {
             return Result.failure(IllegalStateException("Offline"))
         }
-        return if (settings.authType == com.shaarli.poster.data.model.AuthType.Session) {
-            client.login(settings)
-        } else {
-            client.validate(settings)
-        }
+        return client.validate(settings)
     }
 
     private suspend fun postLinkInternal(
@@ -79,19 +75,6 @@ class ShaarliRepository(
                 status = PostStatus.Queued,
                 message = if (draft != null) "Offline; queued draft ${draft.id.take(8)}" else "Offline"
             )
-        }
-
-        val authResult = if (settings.authType == com.shaarli.poster.data.model.AuthType.Session) {
-            client.login(settings)
-        } else {
-            Result.success(Unit)
-        }
-        if (authResult.isFailure) {
-            if (queueOnFail) {
-                draftStore.saveDraft(payload)
-            }
-            val message = authResult.exceptionOrNull()?.message ?: "Authentication failed"
-            return PostResult(PostStatus.Failed, message)
         }
 
         val response = client.createLink(settings, payload)

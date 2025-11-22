@@ -1,6 +1,5 @@
 package com.shaarli.poster.data.network
 
-import com.shaarli.poster.data.model.AuthType
 import com.shaarli.poster.data.model.LinkPayload
 import com.shaarli.poster.data.model.ShaarliSettings
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -35,7 +34,6 @@ class ShaarliClientTest {
         server.enqueue(MockResponse().setResponseCode(200))
         val settings = ShaarliSettings(
             baseUrl = server.url("/").toString(),
-            authType = AuthType.Token,
             apiSecret = "secret"
         )
         val payload = LinkPayload(
@@ -51,16 +49,22 @@ class ShaarliClientTest {
 
         val request = server.takeRequest()
         assertEquals("/api/v1/links", request.path)
-        assertEquals("secret", request.getHeader("X-Api-Token"))
+        val authHeader = request.getHeader("Authorization")
+        assert(authHeader?.startsWith("Bearer ") == true)
     }
 
     @Test
     fun `validate calls info endpoint`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200))
-        val settings = ShaarliSettings(baseUrl = server.url("/").toString())
+        val settings = ShaarliSettings(
+            baseUrl = server.url("/").toString(),
+            apiSecret = "secret"
+        )
         val result = client.validate(settings)
         assert(result.isSuccess)
         val request = server.takeRequest()
         assertEquals("/api/v1/info", request.path)
+        val authHeader = request.getHeader("Authorization")
+        assert(authHeader?.startsWith("Bearer ") == true)
     }
 }

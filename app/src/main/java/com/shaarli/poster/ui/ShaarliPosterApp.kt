@@ -58,21 +58,6 @@ fun ShaarliPosterApp(
                                 current.copy(baseUrl = value)
                             }
                         },
-                        onAuthTypeChange = { authType ->
-                            mainViewModel.updateSettings { current ->
-                                current.copy(authType = authType)
-                            }
-                        },
-                        onUsernameChange = { username ->
-                            mainViewModel.updateSettings { current ->
-                                current.copy(username = username)
-                            }
-                        },
-                        onPasswordChange = { password ->
-                            mainViewModel.updateSettings { current ->
-                                current.copy(password = password)
-                            }
-                        },
                         onApiSecretChange = { secret ->
                             mainViewModel.updateSettings { current ->
                                 current.copy(apiSecret = secret)

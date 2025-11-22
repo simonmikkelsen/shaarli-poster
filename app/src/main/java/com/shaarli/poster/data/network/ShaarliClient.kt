@@ -1,12 +1,11 @@
 package com.shaarli.poster.data.network
 
-import com.shaarli.poster.data.model.AuthType
 import com.shaarli.poster.data.model.LinkPayload
 import com.shaarli.poster.data.model.ShaarliSettings
+import com.shaarli.poster.util.JwtTokenProvider
 import com.shaarli.poster.util.UrlNormalizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.FormBody
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
@@ -16,39 +15,28 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
 class ShaarliClient(
-    private val okHttpClient: OkHttpClient
+    private val okHttpClient: OkHttpClient,
+    private val jwtTokenProvider: JwtTokenProvider = JwtTokenProvider()
 ) {
 
     suspend fun validate(settings: ShaarliSettings): Result<Unit> = withContext(Dispatchers.IO) {
+        val token = jwtTokenProvider.generate(settings.apiSecret)
+            ?: return@withContext Result.failure(IllegalArgumentException("Missing API secret"))
         val url = buildUrl(settings.baseUrl, "api/v1/info") ?: return@withContext Result.failure(
             IllegalArgumentException("Invalid base URL")
         )
         val request = Request.Builder()
             .url(url)
             .get()
-            .withAuth(settings)
-            .build()
-        return@withContext executeRequest(request)
-    }
-
-    suspend fun login(settings: ShaarliSettings): Result<Unit> = withContext(Dispatchers.IO) {
-        if (settings.authType != AuthType.Session) return@withContext Result.success(Unit)
-        val url = buildUrl(settings.baseUrl, "login") ?: return@withContext Result.failure(
-            IllegalArgumentException("Invalid base URL")
-        )
-        val formBody = FormBody.Builder()
-            .add("login", settings.username)
-            .add("password", settings.password)
-            .build()
-        val request = Request.Builder()
-            .url(url)
-            .post(formBody)
+            .withAuth(token)
             .build()
         return@withContext executeRequest(request)
     }
 
     suspend fun createLink(settings: ShaarliSettings, payload: LinkPayload): Result<Unit> =
         withContext(Dispatchers.IO) {
+            val token = jwtTokenProvider.generate(settings.apiSecret)
+                ?: return@withContext Result.failure(IllegalArgumentException("Missing API secret"))
             val url = buildUrl(settings.baseUrl, "api/v1/links") ?: return@withContext Result.failure(
                 IllegalArgumentException("Invalid base URL")
             )
@@ -63,7 +51,7 @@ class ShaarliClient(
             val request = Request.Builder()
                 .url(url)
                 .post(body)
-                .withAuth(settings)
+                .withAuth(token)
                 .build()
             return@withContext executeRequest(request)
         }
@@ -76,18 +64,8 @@ class ShaarliClient(
             .build()
     }
 
-    private fun Request.Builder.withAuth(settings: ShaarliSettings): Request.Builder {
-        return when (settings.authType) {
-            AuthType.Token -> {
-                if (settings.apiSecret.isNotBlank()) {
-                    header("X-Api-Token", settings.apiSecret)
-                } else {
-                    this
-                }
-            }
-            AuthType.Session -> this
-        }
-    }
+    private fun Request.Builder.withAuth(token: String): Request.Builder =
+        header("Authorization", "Bearer $token")
 
     private fun executeRequest(request: Request): Result<Unit> {
         return try {
