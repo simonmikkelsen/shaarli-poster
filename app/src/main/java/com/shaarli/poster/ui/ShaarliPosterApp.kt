@@ -25,6 +25,7 @@ import com.shaarli.poster.ui.theme.ShaarliPosterTheme
 @Composable
 fun ShaarliPosterApp(
     sharedUrlState: State<String?>,
+    isShareFlow: Boolean,
     mainViewModel: MainViewModel
 ) {
     val uiState = mainViewModel.uiState.collectAsState()
@@ -42,77 +43,114 @@ fun ShaarliPosterApp(
                 )
             }
         ) { padding ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(16.dp)
-            ) {
-                item {
-                    SettingsSection(
-                        settings = uiState.value.settings,
-                        connection = uiState.value.connection,
-                        onBaseUrlChange = { value ->
-                            mainViewModel.updateSettings { current ->
-                                current.copy(baseUrl = value)
-                            }
-                        },
-                        onApiSecretChange = { secret ->
-                            mainViewModel.updateSettings { current ->
-                                current.copy(apiSecret = secret)
-                            }
-                        },
-                        onSaveSettings = { mainViewModel.persistSettings() },
-                        onTestConnection = { mainViewModel.testConnection() },
-                        onClearCredentials = { mainViewModel.clearSettings() }
-                    )
-                }
-                item {
-                    ShareSection(
-                        shareForm = uiState.value.shareForm,
-                        onUrlChange = { url ->
-                            mainViewModel.updateShareForm { current ->
-                                current.copy(url = url)
-                            }
-                        },
-                        onTitleChange = { title ->
-                            mainViewModel.updateShareForm { current ->
-                                current.copy(title = title)
-                            }
-                        },
-                        onDescriptionChange = { desc ->
-                            mainViewModel.updateShareForm { current ->
-                                current.copy(description = desc)
-                            }
-                        },
-                        onTagsChange = { tags ->
-                            mainViewModel.updateShareForm { current ->
-                                current.copy(tags = tags)
-                            }
-                        },
-                        onPrivateChange = { isPrivate ->
-                            mainViewModel.updateShareForm { current ->
-                                current.copy(isPrivate = isPrivate)
-                            }
-                        },
-                        onFetchTitle = { mainViewModel.prefillTitle() },
-                        onPost = { mainViewModel.postLink() },
-                        onSaveDraft = { mainViewModel.saveDraft() },
-                        onRetryDrafts = { mainViewModel.retryDrafts() },
-                        pendingDrafts = uiState.value.drafts.size,
-                        lastPostMessage = uiState.value.lastPostMessage
-                    )
-                }
-                if (uiState.value.drafts.isNotEmpty()) {
-                    item {
-                        DraftListSection(
-                            drafts = uiState.value.drafts,
-                            onRetryDrafts = { mainViewModel.retryDrafts() }
-                        )
-                    }
-                }
+            if (isShareFlow) {
+                ShareScreen(
+                    padding = padding,
+                    uiStateValue = uiState.value,
+                    mainViewModel = mainViewModel
+                )
+            } else {
+                SettingsScreen(
+                    padding = padding,
+                    uiStateValue = uiState.value,
+                    mainViewModel = mainViewModel
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun ShareScreen(
+    padding: PaddingValues,
+    uiStateValue: AppUiState,
+    mainViewModel: MainViewModel
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(16.dp)
+    ) {
+        item {
+            ShareSection(
+                shareForm = uiStateValue.shareForm,
+                onUrlChange = { url ->
+                    mainViewModel.updateShareForm { current ->
+                        current.copy(url = url)
+                    }
+                },
+                onTitleChange = { title ->
+                    mainViewModel.updateShareForm { current ->
+                        current.copy(title = title)
+                    }
+                },
+                onDescriptionChange = { desc ->
+                    mainViewModel.updateShareForm { current ->
+                        current.copy(description = desc)
+                    }
+                },
+                onTagsChange = { tags ->
+                    mainViewModel.updateShareForm { current ->
+                        current.copy(tags = tags)
+                    }
+                },
+                onPrivateChange = { isPrivate ->
+                    mainViewModel.updateShareForm { current ->
+                        current.copy(isPrivate = isPrivate)
+                    }
+                },
+                onFetchTitle = { mainViewModel.prefillTitle() },
+                onPost = { mainViewModel.postLink() },
+                onSaveDraft = { mainViewModel.saveDraft() },
+                onRetryDrafts = { mainViewModel.retryDrafts() },
+                pendingDrafts = uiStateValue.drafts.size,
+                lastPostMessage = uiStateValue.lastPostMessage
+            )
+        }
+        if (uiStateValue.drafts.isNotEmpty()) {
+            item {
+                DraftListSection(
+                    drafts = uiStateValue.drafts,
+                    onRetryDrafts = { mainViewModel.retryDrafts() }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    padding: PaddingValues,
+    uiStateValue: AppUiState,
+    mainViewModel: MainViewModel
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(16.dp)
+    ) {
+        item {
+            SettingsSection(
+                settings = uiStateValue.settings,
+                connection = uiStateValue.connection,
+                onBaseUrlChange = { value ->
+                    mainViewModel.updateSettings { current ->
+                        current.copy(baseUrl = value)
+                    }
+                },
+                onApiSecretChange = { secret ->
+                    mainViewModel.updateSettings { current ->
+                        current.copy(apiSecret = secret)
+                    }
+                },
+                onSaveSettings = { mainViewModel.persistSettings() },
+                onTestConnection = { mainViewModel.testConnection() },
+                onClearCredentials = { mainViewModel.clearSettings() }
+            )
         }
     }
 }

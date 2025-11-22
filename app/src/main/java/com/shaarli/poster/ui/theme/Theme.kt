@@ -1,32 +1,28 @@
 package com.shaarli.poster.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+private val DarkGreenScheme = darkColorScheme(
+    primary = Moss,
+    onPrimary = LightText,
+    secondary = Pine,
+    onSecondary = LightText,
+    tertiary = Mint,
+    onTertiary = DarkBackground,
+    background = DarkBackground,
+    onBackground = LightText,
+    surface = ForestGreen,
+    onSurface = LightText
 )
 
 @Composable
 fun ShaarliPosterTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = DarkGreenScheme,
         typography = Typography,
         content = content
     )

@@ -25,8 +25,13 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val state = remember { sharedUrlState }
+            val isShareFlow = state.value?.isNotBlank() == true
             ShaarliPosterTheme {
-                ShaarliPosterApp(sharedUrlState = state, mainViewModel = mainViewModel)
+                ShaarliPosterApp(
+                    sharedUrlState = state,
+                    isShareFlow = isShareFlow,
+                    mainViewModel = mainViewModel
+                )
             }
         }
     }
