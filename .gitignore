@@ -1,0 +1,29 @@
+# Gradle
+/.gradle/
+/build/
+/app/build/
+/app/release/
+/.idea/
+/.vscode/
+.DS_Store
+local.properties
+.cxx/
+.externalNativeBuild/
+.kotlin/
+captures/
+
+# Android artifacts
+*.iml
+*.hprof
+*.keystore
+*.jks
+*.aab
+*.apk
+*.dex
+
+# Logs
+*.log
+
+# Gradle wrapper binaries (keep wrapper scripts if added)
+/gradle/wrapper/gradle-wrapper.jar
+/gradle-wrapper.jar
