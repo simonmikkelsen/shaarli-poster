@@ -30,6 +30,11 @@ From the project root:
 ./gradlew test                 # unit tests
 ./gradlew connectedAndroidTest # instrumentation tests (emulator/device required)
 ```
+Or use the helper script:
+```bash
+bash build.sh            # installs deps + builds
+bash build.sh --build-only  # assumes deps/SDK/Gradle already installed
+```
 
 ## Run on a device
 1) Enable USB debugging on the phone and connect it (or start an emulator).
@@ -42,6 +47,11 @@ From the project root:
    adb install -r app/build/outputs/apk/debug/app-debug.apk
    ```
 4) From mobile apps/browsers, share a link to “Shaarli Poster” to open the compose sheet with prefilled URL/title.
+
+## Features
+- Encrypted settings (URL + token or username/password) stored with Android Keystore.
+- Share flow with URL/title/description/tags/private toggle, title prefetch, offline draft saving, and retry for pending drafts.
+- Simple status indicators for connection tests and posting attempts.
 
 ## Google Play submission (high level)
 1) Create or reuse a signing key:

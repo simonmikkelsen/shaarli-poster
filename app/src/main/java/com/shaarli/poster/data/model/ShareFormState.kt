@@ -7,7 +7,8 @@ data class ShareFormState(
     val tags: String = "",
     val isPrivate: Boolean = false,
     val status: ShareStatus = ShareStatus.Idle,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val infoMessage: String? = null
 )
 
 enum class ShareStatus {

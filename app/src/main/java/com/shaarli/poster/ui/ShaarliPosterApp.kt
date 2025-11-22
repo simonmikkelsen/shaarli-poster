@@ -16,17 +16,16 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.shaarli.poster.data.model.AuthType
 import com.shaarli.poster.ui.screens.SettingsSection
 import com.shaarli.poster.ui.screens.ShareSection
+import com.shaarli.poster.ui.screens.DraftListSection
 import com.shaarli.poster.ui.theme.ShaarliPosterTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShaarliPosterApp(
     sharedUrlState: State<String?>,
-    mainViewModel: MainViewModel = viewModel()
+    mainViewModel: MainViewModel
 ) {
     val uiState = mainViewModel.uiState.collectAsState()
 
@@ -53,6 +52,7 @@ fun ShaarliPosterApp(
                 item {
                     SettingsSection(
                         settings = uiState.value.settings,
+                        connection = uiState.value.connection,
                         onBaseUrlChange = { value ->
                             mainViewModel.updateSettings { current ->
                                 current.copy(baseUrl = value)
@@ -77,7 +77,10 @@ fun ShaarliPosterApp(
                             mainViewModel.updateSettings { current ->
                                 current.copy(apiSecret = secret)
                             }
-                        }
+                        },
+                        onSaveSettings = { mainViewModel.persistSettings() },
+                        onTestConnection = { mainViewModel.testConnection() },
+                        onClearCredentials = { mainViewModel.clearSettings() }
                     )
                 }
                 item {
@@ -109,8 +112,20 @@ fun ShaarliPosterApp(
                             }
                         },
                         onFetchTitle = { mainViewModel.prefillTitle() },
-                        onPost = { mainViewModel.postLink() }
+                        onPost = { mainViewModel.postLink() },
+                        onSaveDraft = { mainViewModel.saveDraft() },
+                        onRetryDrafts = { mainViewModel.retryDrafts() },
+                        pendingDrafts = uiState.value.drafts.size,
+                        lastPostMessage = uiState.value.lastPostMessage
                     )
+                }
+                if (uiState.value.drafts.isNotEmpty()) {
+                    item {
+                        DraftListSection(
+                            drafts = uiState.value.drafts,
+                            onRetryDrafts = { mainViewModel.retryDrafts() }
+                        )
+                    }
                 }
             }
         }

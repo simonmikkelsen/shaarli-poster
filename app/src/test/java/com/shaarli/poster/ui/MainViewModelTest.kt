@@ -1,7 +1,14 @@
 package com.shaarli.poster.ui
 
 import com.shaarli.poster.data.metadata.TitleFetcher
+import com.shaarli.poster.data.model.Draft
+import com.shaarli.poster.data.model.LinkPayload
 import com.shaarli.poster.data.model.ShareStatus
+import com.shaarli.poster.data.model.ShaarliSettings
+import com.shaarli.poster.data.repository.PosterRepository
+import com.shaarli.poster.data.repository.PostResult
+import com.shaarli.poster.data.repository.PostStatus
+import com.shaarli.poster.data.repository.RetryResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -31,7 +38,10 @@ class MainViewModelTest {
 
     @Test
     fun `prefill title succeeds`() = runTest(dispatcher) {
-        val viewModel = MainViewModel(FakeTitleFetcher(Result.success("Hello world")))
+        val viewModel = MainViewModel(
+            repository = FakeRepository(),
+            titleFetcher = FakeTitleFetcher(Result.success("Hello world"))
+        )
         viewModel.updateShareForm { it.copy(url = "https://example.com") }
 
         viewModel.prefillTitle()
@@ -44,7 +54,10 @@ class MainViewModelTest {
 
     @Test
     fun `prefill title reports error`() = runTest(dispatcher) {
-        val viewModel = MainViewModel(FakeTitleFetcher(Result.failure(IllegalStateException("boom"))))
+        val viewModel = MainViewModel(
+            repository = FakeRepository(),
+            titleFetcher = FakeTitleFetcher(Result.failure(IllegalStateException("boom")))
+        )
         viewModel.updateShareForm { it.copy(url = "https://example.com") }
 
         viewModel.prefillTitle()
@@ -60,4 +73,18 @@ private class FakeTitleFetcher(
     private val result: Result<String>
 ) : TitleFetcher {
     override suspend fun fetchTitle(url: String): Result<String> = result
+}
+
+private class FakeRepository : PosterRepository {
+    override suspend fun loadSettings(): ShaarliSettings = ShaarliSettings()
+    override suspend fun saveSettings(settings: ShaarliSettings) {}
+    override suspend fun clearSettings() {}
+    override suspend fun listDrafts(): List<Draft> = emptyList()
+    override suspend fun saveDraft(payload: LinkPayload): Draft = Draft("1", payload, 0)
+    override suspend fun removeDraft(id: String) {}
+    override suspend fun retryDrafts(settings: ShaarliSettings): RetryResult = RetryResult(0, 0)
+    override suspend fun postLink(settings: ShaarliSettings, payload: LinkPayload): PostResult =
+        PostResult(PostStatus.Posted, null)
+
+    override suspend fun testConnection(settings: ShaarliSettings): Result<Unit> = Result.success(Unit)
 }

@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -30,7 +33,11 @@ fun ShareSection(
     onTagsChange: (String) -> Unit,
     onPrivateChange: (Boolean) -> Unit,
     onFetchTitle: () -> Unit,
-    onPost: () -> Unit
+    onPost: () -> Unit,
+    onSaveDraft: () -> Unit,
+    onRetryDrafts: () -> Unit,
+    pendingDrafts: Int,
+    lastPostMessage: String?
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -84,6 +91,8 @@ fun ShareSection(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
+            TagPreview(tags = shareForm.tags)
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -96,21 +105,37 @@ fun ShareSection(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = if (shareForm.isPrivate) "Private" else "Public")
                 }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = onPost,
                     enabled = shareForm.url.isNotBlank() && shareForm.status != ShareStatus.Posting
                 ) {
                     Text(if (shareForm.status == ShareStatus.Posting) "Posting..." else "Post")
                 }
+                Button(onClick = onSaveDraft, enabled = shareForm.url.isNotBlank()) {
+                    Text("Save draft")
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            StatusMessage(shareForm = shareForm)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Pending drafts: $pendingDrafts")
+                TextButton(onClick = onRetryDrafts, enabled = pendingDrafts > 0) {
+                    Text("Retry drafts")
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            StatusMessage(shareForm = shareForm, lastPostMessage = lastPostMessage)
         }
     }
 }
 
 @Composable
-private fun StatusMessage(shareForm: ShareFormState) {
+private fun StatusMessage(shareForm: ShareFormState, lastPostMessage: String?) {
     when (shareForm.status) {
         ShareStatus.Success -> Text(text = "Link posted successfully.")
         ShareStatus.Error -> if (!shareForm.errorMessage.isNullOrBlank()) {
@@ -119,5 +144,18 @@ private fun StatusMessage(shareForm: ShareFormState) {
         ShareStatus.Prefilling -> Text(text = "Fetching title...")
         ShareStatus.Posting -> Text(text = "Posting...")
         ShareStatus.Idle -> {}
+    }
+    shareForm.infoMessage?.let { Text(it) }
+    lastPostMessage?.let { Text("Last: $it") }
+}
+
+@Composable
+private fun TagPreview(tags: String) {
+    val parsed = tags.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    if (parsed.isEmpty()) return
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(parsed.size) { index ->
+            AssistChip(onClick = {}, label = { Text(parsed[index]) })
+        }
     }
 }
