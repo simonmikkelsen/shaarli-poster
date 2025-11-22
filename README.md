@@ -17,9 +17,9 @@ Early scaffolding for an Android app that shares links to a self-hosted Shaarli 
 
 ## Setup
 1) Ensure Android SDK and an emulator or device are available.
-2) (Optional, if no Gradle wrapper is present) Generate the wrapper with a local Gradle install:
+2) (Optional, if no Gradle wrapper is present) Generate the wrapper with a local Gradle install (8.4 recommended for AGP 8.3.x):
    ```bash
-   gradle wrapper --gradle-version 8.3.2
+   gradle wrapper --gradle-version 8.4
    ```
 3) Open the project in Android Studio **or** build from the CLI.
 
