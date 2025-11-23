@@ -4,6 +4,7 @@ import com.shaarli.poster.data.model.LinkPayload
 import com.shaarli.poster.data.model.ShaarliSettings
 import com.shaarli.poster.util.JwtTokenProvider
 import com.shaarli.poster.util.UrlNormalizer
+import com.shaarli.poster.util.UrlSanitizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
@@ -26,6 +27,7 @@ class ShaarliClient(
 ) {
 
     suspend fun validate(settings: ShaarliSettings): Result<Unit> = withContext(Dispatchers.IO) {
+        println("[ShaarliClient] validate baseUrl='${settings.baseUrl}'")
         val token = jwtTokenProvider.generate(settings.apiSecret)
             ?: return@withContext Result.failure(IllegalArgumentException("Missing API secret"))
         val url = buildUrl(settings.baseUrl, "api/v1/info") ?: return@withContext Result.failure(
@@ -43,6 +45,7 @@ class ShaarliClient(
         withContext(Dispatchers.IO) {
             val token = jwtTokenProvider.generate(settings.apiSecret)
                 ?: return@withContext Result.failure(IllegalArgumentException("Missing API secret"))
+            println("[ShaarliClient] createLink url='${payload.url}' title='${payload.title}'")
             val url = buildUrl(settings.baseUrl, "api/v1/links") ?: return@withContext Result.failure(
                 IllegalArgumentException("Invalid base URL")
             )
@@ -107,12 +110,17 @@ class ShaarliClient(
         withContext(Dispatchers.IO) {
             val token = jwtTokenProvider.generate(settings.apiSecret)
                 ?: return@withContext Result.failure(IllegalArgumentException("Missing API secret"))
+            val canonicalTarget = UrlSanitizer.canonical(targetUrl)
+            val parsedTarget = targetUrl.trim().toHttpUrlOrNull()
+            val searchTerm = parsedTarget?.let { "${it.host}${it.encodedPath}".trimEnd('/') }
+                ?: UrlSanitizer.stripQueryAndFragment(targetUrl)
             val url = buildUrl(settings.baseUrl, "api/v1/links")
                 ?.newBuilder()
-                ?.addQueryParameter("searchterm", targetUrl)
-                ?.addQueryParameter("limit", "1")
+                ?.addQueryParameter("searchterm", searchTerm)
+                ?.addQueryParameter("limit", "20")
                 ?.build()
                 ?: return@withContext Result.failure(IllegalArgumentException("Invalid base URL"))
+            println("[ShaarliClient] findLinkByUrl target='$targetUrl' canonical='$canonicalTarget' searchTerm='$searchTerm' requestUrl='$url'")
 
             val request = Request.Builder()
                 .url(url)
@@ -122,19 +130,37 @@ class ShaarliClient(
 
             return@withContext try {
                 okHttpClient.newCall(request).execute().use { response ->
+                    println("[ShaarliClient] findLinkByUrl HTTP ${response.code}")
                     if (!response.isSuccessful) {
                         return@use Result.failure(IllegalStateException("HTTP ${response.code}"))
                     }
                     val body = response.body?.string().orEmpty()
+                    println("[ShaarliClient] findLinkByUrl body='$body'")
                     val array = JSONArray(body)
-                    if (array.length() == 0) {
-                        Result.success(null)
-                    } else {
-                        val obj = array.getJSONObject(0)
-                        Result.success(obj.toLinkPayload())
-                    }
+                    val targetBase = UrlSanitizer.stripQueryAndFragment(targetUrl)
+                    val targetNoScheme = canonicalTarget.removePrefix("https://").removePrefix("http://")
+
+                    val matchesTarget = (0 until array.length())
+                        .mapNotNull { idx ->
+                            val payload = array.getJSONObject(idx).toLinkPayload()
+                            val payloadCanonical = UrlSanitizer.canonical(payload.url)
+                            val payloadBase = UrlSanitizer.stripQueryAndFragment(payload.url)
+                            val payloadNoScheme =
+                                payloadCanonical.removePrefix("https://").removePrefix("http://")
+                            when {
+                                payloadCanonical == canonicalTarget -> payload to true
+                                payloadBase == targetBase -> payload to false
+                                payloadNoScheme == targetNoScheme -> payload to false
+                                else -> null
+                            }
+                        }
+                    println("[ShaarliClient] findLinkByUrl matchesTarget size=${matchesTarget.size}")
+                    val exact = matchesTarget.firstOrNull { it.second }?.first
+                    val fallback = matchesTarget.firstOrNull()?.first
+                    Result.success(exact ?: fallback)
                 }
             } catch (e: Exception) {
+                println("[ShaarliClient][ERR] findLinkByUrl error: ${e.message}")
                 Result.failure(e)
             }
         }

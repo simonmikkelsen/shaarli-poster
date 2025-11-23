@@ -1,6 +1,5 @@
 package com.shaarli.poster.data.repository
 
-import android.util.Log
 import com.shaarli.poster.data.model.Draft
 import com.shaarli.poster.data.model.LinkPayload
 import com.shaarli.poster.data.model.ShaarliSettings
@@ -67,9 +66,6 @@ class ShaarliRepository(
     }
 
     override suspend fun findExistingLink(settings: ShaarliSettings, url: String): Result<LinkPayload?> {
-        if (!networkStatus.isOnline()) {
-            return Result.failure(IllegalStateException("Offline"))
-        }
         return client.findLinkByUrl(settings, url)
     }
 

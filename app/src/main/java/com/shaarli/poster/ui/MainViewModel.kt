@@ -46,6 +46,8 @@ class MainViewModel(
     private val _postSuccessEvents = Channel<Unit>(Channel.BUFFERED)
     val postSuccessEvents = _postSuccessEvents.receiveAsFlow()
     private var lastLookupUrl: String? = null
+    private val logTag = "MainViewModel"
+    private var settingsLoaded: Boolean = false
 
     init {
         viewModelScope.launch {
@@ -56,7 +58,15 @@ class MainViewModel(
 
     private suspend fun loadSettings() {
         val settings = repository.loadSettings()
+        settingsLoaded = true
+        println("[$logTag] loadSettings baseUrl='${settings.baseUrl}' apiSecretBlank=${settings.apiSecret.isBlank()}")
         _uiState.update { it.copy(settings = settings) }
+
+        val currentUrl = _uiState.value.shareForm.url
+        if (currentUrl.isNotBlank() && _uiState.value.shareForm.existingLinkId == null) {
+            println("[$logTag] loadSettings triggering lookup for existing url='$currentUrl'")
+            fetchExistingLinkOrPrefill(currentUrl)
+        }
     }
 
     private suspend fun refreshDrafts() {
@@ -65,25 +75,40 @@ class MainViewModel(
     }
 
     fun applySharedUrl(sharedUrl: String?) {
-        if (sharedUrl.isNullOrBlank()) return
+        if (sharedUrl.isNullOrBlank()) {
+            println("[$logTag] applySharedUrl called with null/blank; ignoring")
+            return
+        }
+        val trimmedUrl = sharedUrl.trim()
+        println("[$logTag] applySharedUrl url='$trimmedUrl'")
         _uiState.update { state ->
             state.copy(
                 shareForm = state.shareForm.copy(
-                    url = sharedUrl.trim(),
+                    url = trimmedUrl,
                     status = ShareStatus.Idle,
-                    errorMessage = null
+                    errorMessage = null,
+                    infoMessage = null,
+                    existingLinkId = null
                 )
             )
         }
-        prefillTitle()
-        fetchExistingLink(sharedUrl)
+        fetchExistingLinkOrPrefill(trimmedUrl)
     }
 
     fun onUrlChanged(url: String, triggerLookup: Boolean) {
-        updateShareForm { current -> current.copy(url = url) }
-        if (triggerLookup && url.isNotBlank() && url != lastLookupUrl) {
-            lastLookupUrl = url
-            fetchExistingLink(url)
+        val trimmedUrl = url.trim()
+        println("[$logTag] onUrlChanged trimmed='$trimmedUrl' triggerLookup=$triggerLookup lastLookupUrl=$lastLookupUrl")
+        updateShareForm { current ->
+            current.copy(
+                url = trimmedUrl,
+                existingLinkId = null,
+                infoMessage = null,
+                errorMessage = null
+            )
+        }
+        if (triggerLookup && trimmedUrl.isNotBlank() && trimmedUrl != lastLookupUrl) {
+            println("[$logTag] onUrlChanged triggering lookup for '$trimmedUrl'")
+            fetchExistingLinkOrPrefill(trimmedUrl)
         }
     }
 
@@ -112,12 +137,14 @@ class MainViewModel(
         val url = uiState.value.shareForm.url
         if (url.isBlank()) return
 
+        println("[$logTag] prefillTitle for url='$url'")
         updateShareForm { form ->
             form.copy(status = ShareStatus.Prefilling, errorMessage = null, infoMessage = null)
         }
 
         viewModelScope.launch {
             val result = titleFetcher.fetchTitle(url)
+            println("[$logTag] prefillTitle result isSuccess=${result.isSuccess} message='${result.exceptionOrNull()?.message}'")
             _uiState.update { state ->
                 val updatedForm = if (result.isSuccess) {
                     state.shareForm.copy(
@@ -194,6 +221,7 @@ class MainViewModel(
 
     fun postLink() {
         val payload = buildPayloadOrFail() ?: return
+        println("[$logTag] postLink payload.url='${payload.url}' id=${payload.id} existingLinkId=${_uiState.value.shareForm.existingLinkId}")
         updateShareForm { it.copy(status = ShareStatus.Posting, errorMessage = null, infoMessage = "Posting…") }
         viewModelScope.launch {
             val targetPayload = if (uiState.value.shareForm.existingLinkId != null) {
@@ -236,35 +264,69 @@ class MainViewModel(
     private fun buildPayloadOrFail(): LinkPayload? {
         val form = _uiState.value.shareForm
         if (form.url.isBlank()) {
+            println("[$logTag][WARN] buildPayloadOrFail missing URL")
             updateShareForm { it.copy(status = ShareStatus.Error, errorMessage = "URL is required") }
             return null
         }
         if (_uiState.value.settings.baseUrl.isBlank()) {
+            println("[$logTag][WARN] buildPayloadOrFail missing Shaarli base URL")
             updateShareForm { it.copy(status = ShareStatus.Error, errorMessage = "Shaarli URL not set") }
             return null
         }
         return LinkPayload.fromState(form)
     }
 
-    private fun fetchExistingLink(url: String) {
+    private fun fetchExistingLinkOrPrefill(url: String) {
+        val trimmedUrl = url.trim()
+        if (trimmedUrl.isBlank()) return
+        lastLookupUrl = trimmedUrl
+        println("[$logTag] fetchExistingLinkOrPrefill start url='$trimmedUrl'")
+
+        if (!settingsLoaded) {
+            println("[$logTag] fetchExistingLinkOrPrefill settings not loaded yet; skipping lookup for now")
+            return
+        }
+
+        val settings = _uiState.value.settings
+        if (settings.baseUrl.isBlank() || settings.apiSecret.isBlank()) {
+            println("[$logTag] fetchExistingLinkOrPrefill settings incomplete (baseUrl or apiSecret blank); using prefillTitle")
+            prefillTitle()
+            return
+        }
+
         viewModelScope.launch {
-            val result = repository.findExistingLink(_uiState.value.settings, url)
-            result.onSuccess { existing ->
-                if (existing != null) {
-                    _uiState.update { state ->
-                        state.copy(
-                            shareForm = state.shareForm.copy(
-                                title = existing.title,
-                                description = existing.description,
-                                tags = existing.tags.joinToString(", "),
-                                isPrivate = existing.isPrivate,
-                                existingLinkId = existing.id,
-                                infoMessage = "Existing link loaded"
+            val result = repository.findExistingLink(_uiState.value.settings, trimmedUrl)
+            val currentUrl = _uiState.value.shareForm.url.trim()
+            println("[$logTag] fetchExistingLinkOrPrefill got result isSuccess=${result.isSuccess} currentUrl='$currentUrl'")
+            if (currentUrl != trimmedUrl) return@launch
+            result.fold(
+                onSuccess = { existing ->
+                    if (existing != null) {
+                        println("[$logTag] fetchExistingLinkOrPrefill found existing id=${existing.id} url='${existing.url}' title='${existing.title}'")
+                        _uiState.update { state ->
+                            state.copy(
+                                shareForm = state.shareForm.copy(
+                                    title = existing.title,
+                                    description = existing.description,
+                                    tags = existing.tags.joinToString(", "),
+                                    isPrivate = existing.isPrivate,
+                                    existingLinkId = existing.id,
+                                    infoMessage = "Existing link loaded",
+                                    status = ShareStatus.Idle,
+                                    errorMessage = null
+                                )
                             )
-                        )
+                        }
+                    } else {
+                        println("[$logTag] fetchExistingLinkOrPrefill no existing found -> prefillTitle")
+                        prefillTitle()
                     }
+                },
+                onFailure = {
+                    println("[$logTag][WARN] fetchExistingLinkOrPrefill failed: ${it.message}")
+                    prefillTitle()
                 }
-            }
+            )
         }
     }
 

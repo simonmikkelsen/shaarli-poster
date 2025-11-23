@@ -27,3 +27,6 @@ captures/
 # Gradle wrapper binaries (keep wrapper scripts if added)
 /gradle/wrapper/gradle-wrapper.jar
 /gradle-wrapper.jar
+
+# Server source code
+/Shaarli/

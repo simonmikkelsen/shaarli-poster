@@ -104,4 +104,107 @@ class ShaarliClientTest {
         assertEquals(42, conflict?.existing?.id)
         assertEquals("https://example.com", conflict?.existing?.url)
     }
+
+    @Test
+    fun `findLinkByUrl strips tracking params and returns link`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    [
+                      {
+                        "id": 99,
+                        "url": "https://example.com/path",
+                        "title": "Existing",
+                        "description": "desc",
+                        "tags": ["tag1"],
+                        "private": true
+                      }
+                    ]
+                    """.trimIndent()
+                )
+        )
+        val settings = ShaarliSettings(
+            baseUrl = server.url("/").toString(),
+            apiSecret = "secret"
+        )
+        val result = client.findLinkByUrl(
+            settings,
+            "https://example.com/path?utm_source=newsletter&utm_medium=email#section"
+        )
+        val request = server.takeRequest()
+        val searchterm = request.requestUrl?.queryParameter("searchterm")
+        assertEquals("example.com/path", searchterm)
+        val link = result.getOrNull()
+        assertEquals(99, link?.id)
+        assertEquals(listOf("tag1"), link?.tags)
+        assertEquals(true, link?.isPrivate)
+    }
+
+    @Test
+    fun `findLinkByUrl matches even when stored link lacks query params`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    [
+                      {
+                        "id": 100,
+                        "url": "https://example.com/path",
+                        "title": "Existing",
+                        "description": "desc",
+                        "tags": [],
+                        "private": false
+                      }
+                    ]
+                    """.trimIndent()
+                )
+        )
+        val settings = ShaarliSettings(
+            baseUrl = server.url("/").toString(),
+            apiSecret = "secret"
+        )
+        val result = client.findLinkByUrl(
+            settings,
+            "https://example.com/path?foo=bar"
+        )
+        val link = result.getOrNull()
+        assertEquals(100, link?.id)
+        assertEquals("Existing", link?.title)
+    }
+
+    @Test
+    fun `findLinkByUrl matches when schemes differ`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    [
+                      {
+                        "id": 101,
+                        "url": "http://example.com/path",
+                        "title": "Existing HTTP",
+                        "description": "desc",
+                        "tags": [],
+                        "private": false
+                      }
+                    ]
+                    """.trimIndent()
+                )
+        )
+        val settings = ShaarliSettings(
+            baseUrl = server.url("/").toString(),
+            apiSecret = "secret"
+        )
+        val result = client.findLinkByUrl(
+            settings,
+            "https://example.com/path"
+        )
+        val link = result.getOrNull()
+        assertEquals(101, link?.id)
+        assertEquals("Existing HTTP", link?.title)
+    }
 }

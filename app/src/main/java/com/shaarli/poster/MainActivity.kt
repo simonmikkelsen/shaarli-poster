@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
 
         val rawText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return null
         val matcher = Patterns.WEB_URL.matcher(rawText)
-        return if (matcher.find()) matcher.group() else rawText
+        val extracted = if (matcher.find()) matcher.group() else rawText
+        return extracted
     }
 }
