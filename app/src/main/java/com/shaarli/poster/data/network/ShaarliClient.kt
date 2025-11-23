@@ -15,6 +15,11 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
+sealed class CreateLinkResult {
+    data object Created : CreateLinkResult()
+    data class Conflict(val existing: LinkPayload) : CreateLinkResult()
+}
+
 class ShaarliClient(
     private val okHttpClient: OkHttpClient,
     private val jwtTokenProvider: JwtTokenProvider = JwtTokenProvider()
@@ -34,7 +39,7 @@ class ShaarliClient(
         return@withContext executeRequest(request)
     }
 
-    suspend fun createLink(settings: ShaarliSettings, payload: LinkPayload): Result<Unit> =
+    suspend fun createLink(settings: ShaarliSettings, payload: LinkPayload): Result<CreateLinkResult> =
         withContext(Dispatchers.IO) {
             val token = jwtTokenProvider.generate(settings.apiSecret)
                 ?: return@withContext Result.failure(IllegalArgumentException("Missing API secret"))
@@ -54,7 +59,84 @@ class ShaarliClient(
                 .post(body)
                 .withAuth(token)
                 .build()
+            return@withContext try {
+                okHttpClient.newCall(request).execute().use { response ->
+                    when {
+                        response.isSuccessful -> Result.success(CreateLinkResult.Created)
+                        response.code == 409 -> {
+                            val bodyString = response.body?.string().orEmpty()
+                            val existing = JSONObject(bodyString).toLinkPayload()
+                            if (existing.id == null) {
+                                Result.failure(IllegalStateException("HTTP 409 (missing link id)"))
+                            } else {
+                                Result.success(CreateLinkResult.Conflict(existing))
+                            }
+                        }
+                        else -> Result.failure(IllegalStateException("HTTP ${response.code}"))
+                    }
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    suspend fun updateLink(settings: ShaarliSettings, payload: LinkPayload): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            val token = jwtTokenProvider.generate(settings.apiSecret)
+                ?: return@withContext Result.failure(IllegalArgumentException("Missing API secret"))
+            val linkId = payload.id ?: return@withContext Result.failure(IllegalArgumentException("Missing link id"))
+            val url = buildUrl(settings.baseUrl, "api/v1/links/$linkId")
+                ?: return@withContext Result.failure(IllegalArgumentException("Invalid base URL"))
+            val json = JSONObject().apply {
+                put("url", payload.url)
+                put("title", payload.title)
+                put("description", payload.description)
+                put("tags", JSONArray(payload.tags))
+                put("private", payload.isPrivate)
+            }
+            val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder()
+                .url(url)
+                .put(body)
+                .withAuth(token)
+                .build()
             return@withContext executeRequest(request)
+        }
+
+    suspend fun findLinkByUrl(settings: ShaarliSettings, targetUrl: String): Result<LinkPayload?> =
+        withContext(Dispatchers.IO) {
+            val token = jwtTokenProvider.generate(settings.apiSecret)
+                ?: return@withContext Result.failure(IllegalArgumentException("Missing API secret"))
+            val url = buildUrl(settings.baseUrl, "api/v1/links")
+                ?.newBuilder()
+                ?.addQueryParameter("searchterm", targetUrl)
+                ?.addQueryParameter("limit", "1")
+                ?.build()
+                ?: return@withContext Result.failure(IllegalArgumentException("Invalid base URL"))
+
+            val request = Request.Builder()
+                .url(url)
+                .get()
+                .withAuth(token)
+                .build()
+
+            return@withContext try {
+                okHttpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@use Result.failure(IllegalStateException("HTTP ${response.code}"))
+                    }
+                    val body = response.body?.string().orEmpty()
+                    val array = JSONArray(body)
+                    if (array.length() == 0) {
+                        Result.success(null)
+                    } else {
+                        val obj = array.getJSONObject(0)
+                        Result.success(obj.toLinkPayload())
+                    }
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
 
     private fun buildUrl(base: String, path: String): HttpUrl? {
@@ -80,5 +162,18 @@ class ShaarliClient(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun JSONObject.toLinkPayload(): LinkPayload {
+        val tagsArray = optJSONArray("tags") ?: JSONArray()
+        val tags = (0 until tagsArray.length()).mapNotNull { tagsArray.optString(it) }.filter { it.isNotBlank() }
+        return LinkPayload(
+            id = if (has("id")) optInt("id") else null,
+            url = optString("url"),
+            title = optString("title"),
+            description = optString("description"),
+            tags = tags,
+            isPrivate = optBoolean("private")
+        )
     }
 }

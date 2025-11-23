@@ -26,7 +26,8 @@ import com.shaarli.poster.ui.theme.ShaarliPosterTheme
 fun ShaarliPosterApp(
     sharedUrlState: State<String?>,
     isShareFlow: Boolean,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    onPostSuccess: () -> Unit
 ) {
     val uiState = mainViewModel.uiState.collectAsState()
 
@@ -47,7 +48,8 @@ fun ShaarliPosterApp(
                 ShareScreen(
                     padding = padding,
                     uiStateValue = uiState.value,
-                    mainViewModel = mainViewModel
+                    mainViewModel = mainViewModel,
+                    onPostSuccess = onPostSuccess
                 )
             } else {
                 SettingsScreen(
@@ -64,7 +66,8 @@ fun ShaarliPosterApp(
 private fun ShareScreen(
     padding: PaddingValues,
     uiStateValue: AppUiState,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    onPostSuccess: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -77,9 +80,7 @@ private fun ShareScreen(
             ShareSection(
                 shareForm = uiStateValue.shareForm,
                 onUrlChange = { url ->
-                    mainViewModel.updateShareForm { current ->
-                        current.copy(url = url)
-                    }
+                    mainViewModel.onUrlChanged(url, triggerLookup = true)
                 },
                 onTitleChange = { title ->
                     mainViewModel.updateShareForm { current ->
@@ -102,7 +103,9 @@ private fun ShareScreen(
                     }
                 },
                 onFetchTitle = { mainViewModel.prefillTitle() },
-                onPost = { mainViewModel.postLink() },
+                onPost = {
+                    mainViewModel.postLink()
+                },
                 onSaveDraft = { mainViewModel.saveDraft() },
                 onRetryDrafts = { mainViewModel.retryDrafts() },
                 pendingDrafts = uiStateValue.drafts.size,

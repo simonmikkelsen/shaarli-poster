@@ -5,6 +5,7 @@ import com.shaarli.poster.data.model.Draft
 import com.shaarli.poster.data.model.LinkPayload
 import com.shaarli.poster.data.model.ShaarliSettings
 import com.shaarli.poster.data.network.NetworkStatus
+import com.shaarli.poster.data.network.CreateLinkResult
 import com.shaarli.poster.data.network.ShaarliClient
 import com.shaarli.poster.data.storage.DraftStore
 import com.shaarli.poster.data.storage.SettingsStore
@@ -65,6 +66,28 @@ class ShaarliRepository(
         return client.validate(settings)
     }
 
+    override suspend fun findExistingLink(settings: ShaarliSettings, url: String): Result<LinkPayload?> {
+        if (!networkStatus.isOnline()) {
+            return Result.failure(IllegalStateException("Offline"))
+        }
+        return client.findLinkByUrl(settings, url)
+    }
+
+    override suspend fun updateLink(settings: ShaarliSettings, payload: LinkPayload): PostResult {
+        val response = runCatching { client.updateLink(settings, payload) }
+        return response.fold(
+            onSuccess = { result ->
+                result.fold(
+                    onSuccess = { PostStatus.Posted to "Link updated successfully" },
+                    onFailure = { error -> PostStatus.Failed to (error.message ?: "Failed to update link") }
+                )
+            },
+            onFailure = { throwable ->
+                PostStatus.Failed to (throwable.message ?: "Network error")
+            }
+        ).let { (status, message) -> PostResult(status, message) }
+    }
+
     private suspend fun postLinkInternal(
         settings: ShaarliSettings,
         payload: LinkPayload,
@@ -74,7 +97,14 @@ class ShaarliRepository(
         return response.fold(
             onSuccess = { result ->
                 result.fold(
-                    onSuccess = { PostResult(PostStatus.Posted, "Link posted successfully") },
+                    onSuccess = { createResult ->
+                        when (createResult) {
+                            CreateLinkResult.Created ->
+                                PostResult(PostStatus.Posted, "Link posted successfully")
+                            is CreateLinkResult.Conflict ->
+                                handleConflict(settings, payload, createResult.existing, queueOnFail)
+                        }
+                    },
                     onFailure = { error ->
                         if (queueOnFail) {
                             draftStore.saveDraft(payload)
@@ -90,6 +120,28 @@ class ShaarliRepository(
                     PostResult(PostStatus.Queued, "Network issue; queued draft ${draft.id.take(8)}")
                 } else {
                     PostResult(PostStatus.Failed, message)
+                }
+            }
+        )
+    }
+
+    private suspend fun handleConflict(
+        settings: ShaarliSettings,
+        payload: LinkPayload,
+        existing: LinkPayload,
+        queueOnFail: Boolean
+    ): PostResult {
+        val linkId = existing.id ?: return PostResult(PostStatus.Failed, "Duplicate link found, but missing id")
+        val updatePayload = payload.copy(id = linkId)
+        val updateResult = client.updateLink(settings, updatePayload)
+        return updateResult.fold(
+            onSuccess = { PostResult(PostStatus.Posted, "Link updated successfully") },
+            onFailure = { error ->
+                if (queueOnFail && error is IOException) {
+                    val draft = draftStore.saveDraft(updatePayload)
+                    PostResult(PostStatus.Queued, "Network issue; queued draft ${draft.id.take(8)}")
+                } else {
+                    PostResult(PostStatus.Failed, error.message ?: "Failed to update link")
                 }
             }
         )

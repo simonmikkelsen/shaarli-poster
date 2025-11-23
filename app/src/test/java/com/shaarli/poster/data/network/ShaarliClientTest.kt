@@ -46,6 +46,7 @@ class ShaarliClientTest {
 
         val result = client.createLink(settings, payload)
         assert(result.isSuccess)
+        assert(result.getOrNull() is CreateLinkResult.Created)
 
         val request = server.takeRequest()
         assertEquals("/api/v1/links", request.path)
@@ -66,5 +67,41 @@ class ShaarliClientTest {
         assertEquals("/api/v1/info", request.path)
         val authHeader = request.getHeader("Authorization")
         assert(authHeader?.startsWith("Bearer ") == true)
+    }
+
+    @Test
+    fun `create link returns conflict with existing link payload`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(409)
+                .setBody(
+                    """
+                    {
+                      "id": 42,
+                      "url": "https://example.com",
+                      "title": "Existing",
+                      "description": "desc",
+                      "tags": ["tag1", "tag2"],
+                      "private": false
+                    }
+                    """.trimIndent()
+                )
+        )
+        val settings = ShaarliSettings(
+            baseUrl = server.url("/").toString(),
+            apiSecret = "secret"
+        )
+        val payload = LinkPayload(
+            url = "https://example.com",
+            title = "Example",
+            description = "desc",
+            tags = listOf("tag1"),
+            isPrivate = true
+        )
+
+        val result = client.createLink(settings, payload)
+        val conflict = result.getOrNull() as? CreateLinkResult.Conflict
+        assertEquals(42, conflict?.existing?.id)
+        assertEquals("https://example.com", conflict?.existing?.url)
     }
 }

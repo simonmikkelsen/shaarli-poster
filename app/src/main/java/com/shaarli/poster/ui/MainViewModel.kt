@@ -12,8 +12,10 @@ import com.shaarli.poster.data.model.ShareStatus
 import com.shaarli.poster.data.model.ShaarliSettings
 import com.shaarli.poster.data.repository.PosterRepository
 import com.shaarli.poster.data.repository.PostStatus
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -41,6 +43,9 @@ class MainViewModel(
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
+    private val _postSuccessEvents = Channel<Unit>(Channel.BUFFERED)
+    val postSuccessEvents = _postSuccessEvents.receiveAsFlow()
+    private var lastLookupUrl: String? = null
 
     init {
         viewModelScope.launch {
@@ -71,6 +76,15 @@ class MainViewModel(
             )
         }
         prefillTitle()
+        fetchExistingLink(sharedUrl)
+    }
+
+    fun onUrlChanged(url: String, triggerLookup: Boolean) {
+        updateShareForm { current -> current.copy(url = url) }
+        if (triggerLookup && url.isNotBlank() && url != lastLookupUrl) {
+            lastLookupUrl = url
+            fetchExistingLink(url)
+        }
     }
 
     fun updateSettings(transform: (ShaarliSettings) -> ShaarliSettings) {
@@ -182,7 +196,16 @@ class MainViewModel(
         val payload = buildPayloadOrFail() ?: return
         updateShareForm { it.copy(status = ShareStatus.Posting, errorMessage = null, infoMessage = "Posting…") }
         viewModelScope.launch {
-            val result = repository.postLink(_uiState.value.settings, payload)
+            val targetPayload = if (uiState.value.shareForm.existingLinkId != null) {
+                payload.copy(id = uiState.value.shareForm.existingLinkId)
+            } else {
+                payload
+            }
+            val result = if (targetPayload.id != null) {
+                repository.updateLink(_uiState.value.settings, targetPayload)
+            } else {
+                repository.postLink(_uiState.value.settings, targetPayload)
+            }
             refreshDrafts()
             _uiState.update { state ->
                 val shareForm = when (result.status) {
@@ -204,6 +227,9 @@ class MainViewModel(
                     lastPostMessage = result.message ?: state.lastPostMessage
                 )
             }
+            if (result.status == PostStatus.Posted || result.status == PostStatus.Queued) {
+                _postSuccessEvents.trySend(Unit)
+            }
         }
     }
 
@@ -218,6 +244,28 @@ class MainViewModel(
             return null
         }
         return LinkPayload.fromState(form)
+    }
+
+    private fun fetchExistingLink(url: String) {
+        viewModelScope.launch {
+            val result = repository.findExistingLink(_uiState.value.settings, url)
+            result.onSuccess { existing ->
+                if (existing != null) {
+                    _uiState.update { state ->
+                        state.copy(
+                            shareForm = state.shareForm.copy(
+                                title = existing.title,
+                                description = existing.description,
+                                tags = existing.tags.joinToString(", "),
+                                isPrivate = existing.isPrivate,
+                                existingLinkId = existing.id,
+                                infoMessage = "Existing link loaded"
+                            )
+                        )
+                    }
+                }
+            }
+        }
     }
 
     companion object {

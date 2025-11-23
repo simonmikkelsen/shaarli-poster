@@ -1,6 +1,7 @@
 package com.shaarli.poster.data.model
 
 data class LinkPayload(
+    val id: Int? = null,
     val url: String,
     val title: String,
     val description: String,

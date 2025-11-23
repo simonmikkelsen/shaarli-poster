@@ -6,6 +6,7 @@ data class ShareFormState(
     val description: String = "",
     val tags: String = "",
     val isPrivate: Boolean = false,
+    val existingLinkId: Int? = null,
     val status: ShareStatus = ShareStatus.Idle,
     val errorMessage: String? = null,
     val infoMessage: String? = null

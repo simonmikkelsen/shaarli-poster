@@ -25,5 +25,7 @@ interface PosterRepository {
     suspend fun removeDraft(id: String)
     suspend fun retryDrafts(settings: ShaarliSettings): RetryResult
     suspend fun postLink(settings: ShaarliSettings, payload: LinkPayload): PostResult
+    suspend fun updateLink(settings: ShaarliSettings, payload: LinkPayload): PostResult
     suspend fun testConnection(settings: ShaarliSettings): Result<Unit>
+    suspend fun findExistingLink(settings: ShaarliSettings, url: String): Result<LinkPayload?>
 }

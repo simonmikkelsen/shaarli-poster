@@ -86,5 +86,10 @@ private class FakeRepository : PosterRepository {
     override suspend fun postLink(settings: ShaarliSettings, payload: LinkPayload): PostResult =
         PostResult(PostStatus.Posted, null)
 
+    override suspend fun updateLink(settings: ShaarliSettings, payload: LinkPayload): PostResult =
+        PostResult(PostStatus.Posted, null)
+
     override suspend fun testConnection(settings: ShaarliSettings): Result<Unit> = Result.success(Unit)
+    override suspend fun findExistingLink(settings: ShaarliSettings, url: String): Result<LinkPayload?> =
+        Result.success(null)
 }

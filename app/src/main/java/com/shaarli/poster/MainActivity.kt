@@ -8,9 +8,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import com.shaarli.poster.ui.ShaarliPosterApp
 import com.shaarli.poster.ui.theme.ShaarliPosterTheme
 import com.shaarli.poster.ui.MainViewModel
+import kotlinx.coroutines.flow.collectLatest
 
 class MainActivity : ComponentActivity() {
 
@@ -30,8 +32,16 @@ class MainActivity : ComponentActivity() {
                 ShaarliPosterApp(
                     sharedUrlState = state,
                     isShareFlow = isShareFlow,
-                    mainViewModel = mainViewModel
+                    mainViewModel = mainViewModel,
+                    onPostSuccess = { if (isShareFlow) finish() }
                 )
+                if (isShareFlow) {
+                    LaunchedEffect(Unit) {
+                        mainViewModel.postSuccessEvents.collectLatest {
+                            finish()
+                        }
+                    }
+                }
             }
         }
     }
