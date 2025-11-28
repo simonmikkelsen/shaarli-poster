@@ -1,11 +1,12 @@
 package com.shaarli.poster.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.shaarli.poster.BuildConfig
 import com.shaarli.poster.data.metadata.OkHttpTitleFetcher
 import com.shaarli.poster.data.metadata.TitleFetcher
-import com.shaarli.poster.data.model.Draft
 import com.shaarli.poster.data.model.LinkPayload
 import com.shaarli.poster.data.model.ShareFormState
 import com.shaarli.poster.data.model.ShareStatus
@@ -31,7 +32,6 @@ enum class ConnectionStatus { Idle, Checking, Online, Offline, Error }
 data class AppUiState(
     val settings: ShaarliSettings = ShaarliSettings(),
     val shareForm: ShareFormState = ShareFormState(),
-    val drafts: List<Draft> = emptyList(),
     val connection: ConnectionUiState = ConnectionUiState(),
     val lastPostMessage: String? = null
 )
@@ -47,28 +47,26 @@ class MainViewModel(
     val postSuccessEvents = _postSuccessEvents.receiveAsFlow()
     private var lastLookupUrl: String? = null
     private var settingsLoaded: Boolean = false
+    private var pendingLookupUrl: String? = null
 
     init {
         viewModelScope.launch {
             loadSettings()
-            refreshDrafts()
         }
     }
 
     private suspend fun loadSettings() {
         val settings = repository.loadSettings()
         settingsLoaded = true
+        val baseUrlInfo = settings.baseUrl.takeIf { it.isNotBlank() }?.length ?: 0
+        val secretInfo = if (settings.apiSecret.isNotBlank()) "set" else "missing"
+        logDebug("Settings loaded baseUrl=${baseUrlInfo} chars, apiSecret=$secretInfo")
         _uiState.update { it.copy(settings = settings) }
 
-        val currentUrl = _uiState.value.shareForm.url
+        val currentUrl = _uiState.value.shareForm.url.ifBlank { pendingLookupUrl.orEmpty() }
         if (currentUrl.isNotBlank() && _uiState.value.shareForm.existingLinkId == null) {
             fetchExistingLinkOrPrefill(currentUrl)
         }
-    }
-
-    private suspend fun refreshDrafts() {
-        val drafts = repository.listDrafts()
-        _uiState.update { it.copy(drafts = drafts) }
     }
 
     fun applySharedUrl(sharedUrl: String?) {
@@ -181,38 +179,9 @@ class MainViewModel(
         }
     }
 
-    fun saveDraft() {
-        val payload = buildPayloadOrFail() ?: return
-        viewModelScope.launch {
-            repository.saveDraft(payload)
-            refreshDrafts()
-            _uiState.update { state ->
-                state.copy(
-                    shareForm = state.shareForm.copy(
-                        status = ShareStatus.Idle,
-                        errorMessage = null,
-                        infoMessage = "Draft saved"
-                    )
-                )
-            }
-        }
-    }
-
-    fun retryDrafts() {
-        viewModelScope.launch {
-            val result = repository.retryDrafts(_uiState.value.settings)
-            refreshDrafts()
-            _uiState.update { state ->
-                state.copy(
-                    lastPostMessage = "Retried drafts: posted ${result.posted}, remaining ${result.remaining}"
-                )
-            }
-        }
-    }
-
     fun postLink() {
         val payload = buildPayloadOrFail() ?: return
-        updateShareForm { it.copy(status = ShareStatus.Posting, errorMessage = null, infoMessage = "Posting…") }
+        updateShareForm { it.copy(status = ShareStatus.Posting, errorMessage = null, infoMessage = null) }
         viewModelScope.launch {
             val targetPayload = if (uiState.value.shareForm.existingLinkId != null) {
                 payload.copy(id = uiState.value.shareForm.existingLinkId)
@@ -224,16 +193,11 @@ class MainViewModel(
             } else {
                 repository.postLink(_uiState.value.settings, targetPayload)
             }
-            refreshDrafts()
             _uiState.update { state ->
                 val shareForm = when (result.status) {
                     PostStatus.Posted -> ShareFormState(
                         status = ShareStatus.Success,
                         infoMessage = result.message ?: "Posted successfully"
-                    )
-                    PostStatus.Queued -> ShareFormState(
-                        status = ShareStatus.Success,
-                        infoMessage = result.message ?: "Queued for later"
                     )
                     PostStatus.Failed -> state.shareForm.copy(
                         status = ShareStatus.Error,
@@ -245,7 +209,7 @@ class MainViewModel(
                     lastPostMessage = result.message ?: state.lastPostMessage
                 )
             }
-            if (result.status == PostStatus.Posted || result.status == PostStatus.Queued) {
+            if (result.status == PostStatus.Posted) {
                 _postSuccessEvents.trySend(Unit)
             }
         }
@@ -267,25 +231,29 @@ class MainViewModel(
     private fun fetchExistingLinkOrPrefill(url: String) {
         val trimmedUrl = url.trim()
         if (trimmedUrl.isBlank()) return
-        lastLookupUrl = trimmedUrl
-
-        if (!settingsLoaded) {
-            return
-        }
-
         val settings = _uiState.value.settings
-        if (settings.baseUrl.isBlank() || settings.apiSecret.isBlank()) {
+        if (!settingsLoaded) {
+            logDebug("Delayed lookup; settings not loaded yet for $trimmedUrl")
+            pendingLookupUrl = trimmedUrl
+            return
+        } else if (settings.baseUrl.isBlank() || settings.apiSecret.isBlank()) {
+            logDebug("Skipping lookup; missing baseUrl/apiSecret, prefill title instead")
+            pendingLookupUrl = trimmedUrl
             prefillTitle()
             return
         }
+        lastLookupUrl = trimmedUrl
+        pendingLookupUrl = null
 
         viewModelScope.launch {
+            logDebug("Finding existing link for $trimmedUrl")
             val result = repository.findExistingLink(_uiState.value.settings, trimmedUrl)
             val currentUrl = _uiState.value.shareForm.url.trim()
             if (currentUrl != trimmedUrl) return@launch
             result.fold(
                 onSuccess = { existing ->
                     if (existing != null) {
+                        logDebug("Existing link found id=${existing.id} title=${existing.title}")
                         _uiState.update { state ->
                             state.copy(
                                 shareForm = state.shareForm.copy(
@@ -301,10 +269,14 @@ class MainViewModel(
                             )
                         }
                     } else {
+                        logDebug("No existing link found; prefill title")
                         prefillTitle()
                     }
                 },
-                onFailure = { prefillTitle() }
+                onFailure = {
+                    logDebug("Existing link lookup failed: ${it.message}")
+                    prefillTitle()
+                }
             )
         }
     }
@@ -317,6 +289,12 @@ class MainViewModel(
                     return MainViewModel(repository) as T
                 }
             }
+        }
+    }
+
+    private fun logDebug(message: String) {
+        if (BuildConfig.DEBUG) {
+            Log.d("MainViewModel", message)
         }
     }
 }

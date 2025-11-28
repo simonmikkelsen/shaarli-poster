@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.shaarli.poster.ui.screens.SettingsSection
 import com.shaarli.poster.ui.screens.ShareSection
-import com.shaarli.poster.ui.screens.DraftListSection
 import com.shaarli.poster.ui.theme.ShaarliPosterTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,8 +25,7 @@ import com.shaarli.poster.ui.theme.ShaarliPosterTheme
 fun ShaarliPosterApp(
     sharedUrlState: State<String?>,
     isShareFlow: Boolean,
-    mainViewModel: MainViewModel,
-    onPostSuccess: () -> Unit
+    mainViewModel: MainViewModel
 ) {
     val uiState = mainViewModel.uiState.collectAsState()
 
@@ -49,7 +47,7 @@ fun ShaarliPosterApp(
                     padding = padding,
                     uiStateValue = uiState.value,
                     mainViewModel = mainViewModel,
-                    onPostSuccess = onPostSuccess
+                    isShareFlow = isShareFlow
                 )
             } else {
                 SettingsScreen(
@@ -67,8 +65,13 @@ private fun ShareScreen(
     padding: PaddingValues,
     uiStateValue: AppUiState,
     mainViewModel: MainViewModel,
-    onPostSuccess: () -> Unit
+    isShareFlow: Boolean
 ) {
+    val isBlocked = isShareFlow && (
+        uiStateValue.settings.baseUrl.isBlank() ||
+            uiStateValue.settings.apiSecret.isBlank() ||
+            uiStateValue.shareForm.url.isBlank()
+        )
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -106,19 +109,10 @@ private fun ShareScreen(
                 onPost = {
                     mainViewModel.postLink()
                 },
-                onSaveDraft = { mainViewModel.saveDraft() },
-                onRetryDrafts = { mainViewModel.retryDrafts() },
-                pendingDrafts = uiStateValue.drafts.size,
-                lastPostMessage = uiStateValue.lastPostMessage
+                lastPostMessage = uiStateValue.lastPostMessage,
+                isDisabled = isBlocked,
+                disabledMessage = "URL and authentication for your Shaarli is not set up yet. Open the app as normal and enter the missing information."
             )
-        }
-        if (uiStateValue.drafts.isNotEmpty()) {
-            item {
-                DraftListSection(
-                    drafts = uiStateValue.drafts,
-                    onRetryDrafts = { mainViewModel.retryDrafts() }
-                )
-            }
         }
     }
 }

@@ -6,8 +6,8 @@
 - [x] Settings & auth: implement URL validation, credential/token storage via EncryptedSharedPreferences/Keystore, login validation call, logout/clear data flow.
 - [x] Share flow UI: register share intent filters, build compose screen/dialog with URL/title/description/tags/private toggle, tag chip UI, input validation, loading/error states.
 - [x] Metadata prefill: implement background fetch for page title with timeouts and redirects, ensure user override and graceful failure.
-- [x] Posting logic: implement Shaarli link creation API calls (token or session-based), handle success/failure, offline draft queue with retry and persistence.
-- [x] Draft storage: local DB or file persistence for pending posts; auto-retry on connectivity/auth restoration.
+- [x] Posting logic: implement Shaarli link creation API calls (token or session-based), handle success/failure.
+- [x] Removed offline draft queue; posting now requires connectivity and surfaces errors.
 - [ ] Error handling & telemetry: standardized error mapper, non-sensitive logging, optional log export with redaction.
 - [ ] Theming & accessibility: light/dark themes, contrast, TalkBack labels, touch target sizing (baseline present; needs audit).
 - [ ] Testing: unit tests for URL normalization, metadata parsing, API client; UI/instrumentation tests for share intent and posting flow; ensure tests precede bug fixes. (Partial: unit tests added; more UI/integration tests TODO)

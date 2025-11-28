@@ -1,14 +1,13 @@
 package com.shaarli.poster.ui
 
 import com.shaarli.poster.data.metadata.TitleFetcher
-import com.shaarli.poster.data.model.Draft
 import com.shaarli.poster.data.model.LinkPayload
 import com.shaarli.poster.data.model.ShareStatus
 import com.shaarli.poster.data.model.ShaarliSettings
 import com.shaarli.poster.data.repository.PosterRepository
 import com.shaarli.poster.data.repository.PostResult
 import com.shaarli.poster.data.repository.PostStatus
-import com.shaarli.poster.data.repository.RetryResult
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -116,6 +115,38 @@ class MainViewModelTest {
         assertEquals(1, repo.findExistingLinkInvocations)
         assertEquals(1, titleFetchCalls)
     }
+
+    @Test
+    fun `shared url waits for settings then loads existing link`() = runTest(dispatcher) {
+        val existingLink = LinkPayload(
+            id = 7,
+            url = "https://example.com/path",
+            title = "Saved title",
+            description = "Saved description",
+            tags = listOf("alpha", "beta"),
+            isPrivate = true
+        )
+        val repo = PendingSettingsRepository(Result.success(existingLink))
+        val viewModel = MainViewModel(
+            repository = repo,
+            titleFetcher = FakeTitleFetcher(Result.failure(IllegalStateException("no fetch")))
+        )
+
+        viewModel.applySharedUrl(" https://example.com/path ")
+        advanceUntilIdle()
+        assertEquals(0, repo.findExistingLinkInvocations)
+
+        repo.completeSettings(ShaarliSettings(baseUrl = "https://shaarli.example", apiSecret = "secret"))
+        advanceUntilIdle()
+
+        val form = viewModel.uiState.value.shareForm
+        assertEquals("Saved title", form.title)
+        assertEquals("Saved description", form.description)
+        assertEquals("alpha, beta", form.tags)
+        assertEquals(true, form.isPrivate)
+        assertEquals(7, form.existingLinkId)
+        assertEquals(1, repo.findExistingLinkInvocations)
+    }
 }
 
 private class FakeTitleFetcher(
@@ -136,10 +167,34 @@ private class FakeRepository(
         ShaarliSettings(baseUrl = "https://example.com", apiSecret = "secret")
     override suspend fun saveSettings(settings: ShaarliSettings) {}
     override suspend fun clearSettings() {}
-    override suspend fun listDrafts(): List<Draft> = emptyList()
-    override suspend fun saveDraft(payload: LinkPayload): Draft = Draft("1", payload, 0)
-    override suspend fun removeDraft(id: String) {}
-    override suspend fun retryDrafts(settings: ShaarliSettings): RetryResult = RetryResult(0, 0)
+    override suspend fun postLink(settings: ShaarliSettings, payload: LinkPayload): PostResult =
+        PostResult(PostStatus.Posted, null)
+
+    override suspend fun updateLink(settings: ShaarliSettings, payload: LinkPayload): PostResult =
+        PostResult(PostStatus.Posted, null)
+
+    override suspend fun testConnection(settings: ShaarliSettings): Result<Unit> = Result.success(Unit)
+    override suspend fun findExistingLink(settings: ShaarliSettings, url: String): Result<LinkPayload?> {
+        findExistingLinkInvocations++
+        return existingLinkResult
+    }
+}
+
+private class PendingSettingsRepository(
+    private val existingLinkResult: Result<LinkPayload?> = Result.success(null)
+) : PosterRepository {
+    var findExistingLinkInvocations = 0
+    private val settingsDeferred = CompletableDeferred<ShaarliSettings>()
+
+    fun completeSettings(settings: ShaarliSettings) {
+        if (!settingsDeferred.isCompleted) {
+            settingsDeferred.complete(settings)
+        }
+    }
+
+    override suspend fun loadSettings(): ShaarliSettings = settingsDeferred.await()
+    override suspend fun saveSettings(settings: ShaarliSettings) {}
+    override suspend fun clearSettings() {}
     override suspend fun postLink(settings: ShaarliSettings, payload: LinkPayload): PostResult =
         PostResult(PostStatus.Posted, null)
 

@@ -46,7 +46,7 @@ fun SettingsSection(
                 singleLine = true
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "Authentication (JWT with API secret)")
+            Text(text = "REST API secreet (from Tools, Configure your Shaarli)")
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = settings.apiSecret,
@@ -75,7 +75,7 @@ fun SettingsSection(
                 Text(text = "Warning: HTTP is not secure; prefer HTTPS.")
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = "Tip: API uses JWT from the API secret (Admin > Configuration > REST API secret).")
+            Text(text = "Tip: Find the REST API secret by going to your Shaarli, the menu Tools, Configure your Shaarli. Then check Enable REST API and copy the REST API secret from the field below it.")
         }
     }
 }

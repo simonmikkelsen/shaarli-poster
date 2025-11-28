@@ -11,8 +11,8 @@ Create an Android application that lets users save links to their self-hosted Sh
 ## Platforms & Constraints
 - Android target: API 24+ (Android 7.0+) for modern share intent support; strive for compatibility up to latest stable Android release.
 - Form factor: Phone-first, responsive layouts.
-- Offline: Draft input persists locally, but posting requires network connectivity.
-- Data is stored locally only for settings and unsent drafts.
+- Offline: Posting requires network connectivity; no offline queue.
+- Data is stored locally only for settings.
 
 ## Assumptions
 - Shaarli instance exposes the official API for creating links (token-based), or standard session-based login with CSRF support; approach is configurable per instance if needed.
@@ -35,7 +35,7 @@ Create an Android application that lets users save links to their self-hosted Sh
   - Tags (comma-separated input with chip visualization).
   - Private/Public toggle if supported by Shaarli API.
 - Allow invoking the compose screen from inside the app with manual URL entry.
-- Permit posting immediately or saving as local draft if offline; queued drafts auto-post when back online and authenticated.
+- Permit posting when online and surface clear errors when connectivity/auth fails; user can retry once back online.
 - Provide progress indicator during post; show success toast + clear form; show non-blocking, actionable error messages on failure (with retry).
 
 ### Networking & Metadata Fetch
@@ -60,7 +60,7 @@ Create an Android application that lets users save links to their self-hosted Sh
 
 ## Non-Functional Requirements
 - Performance: Prefill fetch returns or times out within 3 seconds by default; posting attempts return within 5 seconds under normal network conditions.
-- Reliability: No data loss for drafts on process death; crash-free rate goal ≥99.5% for release builds.
+- Reliability: Crash-free rate goal ≥99.5% for release builds.
 - Internationalization: English-first; layout ready for future localization.
 - Maintainability: Modular architecture (e.g., MVVM), clear boundaries between UI, networking, and storage.
 - Testing: Automated tests required for every feature change; write failing test before fixing a bug. Include unit tests for parsing, networking logic (with mocks), and instrumentation/UI tests for share flow.

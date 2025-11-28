@@ -61,12 +61,12 @@ bash build.sh --build-only  # assumes deps/SDK/Gradle already installed
 5) Launch and test:
    - Open “Shaarli Poster” from the launcher to set your Shaarli URL and credentials.
    - From a browser or any app, use Android’s Share action on a link and pick “Shaarli Poster”; the URL/title should prefill.
-   - If offline, save as draft and retry when back online.
+   - If offline, posting will fail with an error; retry when back online.
 6) Optional debugging:
    - View logs: `adb logcat | grep -i shaarli`
    - Clear app data: `adb shell pm clear com.shaarli.poster`
 
 ## Features
 - Encrypted settings (URL + Shaarli API secret) stored with Android Keystore.
-- Share flow with URL/title/description/tags/private toggle, title prefetch, and retry for pending drafts.
+- Share flow with URL/title/description/tags/private toggle, title prefetch, and clear status/error feedback.
 - Simple status indicators for connection tests and posting attempts.

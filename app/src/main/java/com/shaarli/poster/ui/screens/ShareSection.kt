@@ -34,10 +34,9 @@ fun ShareSection(
     onPrivateChange: (Boolean) -> Unit,
     onFetchTitle: () -> Unit,
     onPost: () -> Unit,
-    onSaveDraft: () -> Unit,
-    onRetryDrafts: () -> Unit,
-    pendingDrafts: Int,
-    lastPostMessage: String?
+    lastPostMessage: String?,
+    isDisabled: Boolean,
+    disabledMessage: String
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -45,13 +44,19 @@ fun ShareSection(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = "Share link")
+            if (isDisabled) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = disabledMessage)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedTextField(
                 value = shareForm.url,
                 onValueChange = onUrlChange,
                 label = { Text("URL") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isDisabled
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
@@ -59,17 +64,18 @@ fun ShareSection(
                 onValueChange = onTitleChange,
                 label = { Text("Title") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isDisabled
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = onFetchTitle,
-                    enabled = shareForm.status != ShareStatus.Prefilling && shareForm.url.isNotBlank()
+                    enabled = !isDisabled && shareForm.status != ShareStatus.Prefilling && shareForm.url.isNotBlank()
                 ) {
                     Text(text = if (shareForm.status == ShareStatus.Prefilling) "Loading..." else "Fetch title")
                 }
-                TextButton(onClick = { onTitleChange("") }) {
+                TextButton(onClick = { onTitleChange("") }, enabled = !isDisabled) {
                     Text("Clear title")
                 }
             }
@@ -80,7 +86,8 @@ fun ShareSection(
                 label = { Text("Description / notes") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(120.dp)
+                    .height(120.dp),
+                enabled = !isDisabled
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
@@ -88,7 +95,8 @@ fun ShareSection(
                 onValueChange = onTagsChange,
                 label = { Text("Tags (comma separated)") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isDisabled
             )
             Spacer(modifier = Modifier.height(8.dp))
             TagPreview(tags = shareForm.tags)
@@ -100,33 +108,19 @@ fun ShareSection(
                 Row {
                     Switch(
                         checked = shareForm.isPrivate,
-                        onCheckedChange = onPrivateChange
+                        onCheckedChange = onPrivateChange,
+                        enabled = !isDisabled
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = if (shareForm.isPrivate) "Private" else "Public")
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onPost,
-                    enabled = shareForm.url.isNotBlank() && shareForm.status != ShareStatus.Posting
-                ) {
-                    Text(if (shareForm.status == ShareStatus.Posting) "Posting..." else "Post")
-                }
-                Button(onClick = onSaveDraft, enabled = shareForm.url.isNotBlank()) {
-                    Text("Save draft")
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            Button(
+                onClick = onPost,
+                enabled = !isDisabled && shareForm.url.isNotBlank() && shareForm.status != ShareStatus.Posting
             ) {
-                Text("Pending drafts: $pendingDrafts")
-                TextButton(onClick = onRetryDrafts, enabled = pendingDrafts > 0) {
-                    Text("Retry drafts")
-                }
+                Text(if (shareForm.status == ShareStatus.Posting) "Posting..." else "Post")
             }
             Spacer(modifier = Modifier.height(8.dp))
             StatusMessage(shareForm = shareForm, lastPostMessage = lastPostMessage)
@@ -136,8 +130,9 @@ fun ShareSection(
 
 @Composable
 private fun StatusMessage(shareForm: ShareFormState, lastPostMessage: String?) {
+    val info = shareForm.infoMessage
     when (shareForm.status) {
-        ShareStatus.Success -> Text(text = "Link posted successfully.")
+        ShareStatus.Success -> Text(text = info ?: "Link posted successfully.")
         ShareStatus.Error -> if (!shareForm.errorMessage.isNullOrBlank()) {
             Text(text = shareForm.errorMessage)
         }
@@ -145,7 +140,9 @@ private fun StatusMessage(shareForm: ShareFormState, lastPostMessage: String?) {
         ShareStatus.Posting -> Text(text = "Posting...")
         ShareStatus.Idle -> {}
     }
-    shareForm.infoMessage?.let { Text(it) }
+    if (shareForm.status != ShareStatus.Success) {
+        info?.let { Text(it) }
+    }
     lastPostMessage?.let { Text("Last: $it") }
 }
 

@@ -32,8 +32,7 @@ class MainActivity : ComponentActivity() {
                 ShaarliPosterApp(
                     sharedUrlState = state,
                     isShareFlow = isShareFlow,
-                    mainViewModel = mainViewModel,
-                    onPostSuccess = { if (isShareFlow) finish() }
+                    mainViewModel = mainViewModel
                 )
                 if (isShareFlow) {
                     LaunchedEffect(Unit) {

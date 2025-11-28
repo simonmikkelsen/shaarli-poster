@@ -1,5 +1,7 @@
 package com.shaarli.poster.data.network
 
+import android.util.Log
+import com.shaarli.poster.BuildConfig
 import com.shaarli.poster.data.model.LinkPayload
 import com.shaarli.poster.data.model.ShaarliSettings
 import com.shaarli.poster.util.JwtTokenProvider
@@ -110,12 +112,17 @@ class ShaarliClient(
                 ?: return@withContext Result.failure(IllegalArgumentException("Missing API secret"))
             val canonicalTarget = UrlSanitizer.canonical(targetUrl)
             val parsedTarget = targetUrl.trim().toHttpUrlOrNull()
-            val searchTerm = parsedTarget?.let { "${it.host}${it.encodedPath}".trimEnd('/') }
+            val searchTerm = parsedTarget
+                ?.let { "${it.host}${it.encodedPath}".trimEnd('/') }
                 ?: UrlSanitizer.stripQueryAndFragment(targetUrl)
+                    .toHttpUrlOrNull()
+                    ?.let { "${it.host}${it.encodedPath}".trimEnd('/') }
+                ?: targetUrl.trim()
+            logDebug("findLinkByUrl searchTerm=$searchTerm canonical=$canonicalTarget")
             val url = buildUrl(settings.baseUrl, "api/v1/links")
                 ?.newBuilder()
                 ?.addQueryParameter("searchterm", searchTerm)
-                ?.addQueryParameter("limit", "20")
+                ?.addQueryParameter("limit", "50")
                 ?.build()
                 ?: return@withContext Result.failure(IllegalArgumentException("Invalid base URL"))
             val request = Request.Builder()
@@ -150,9 +157,13 @@ class ShaarliClient(
                         }
                     val exact = matchesTarget.firstOrNull { it.second }?.first
                     val fallback = matchesTarget.firstOrNull()?.first
+                    logDebug(
+                        "findLinkByUrl matched exact=${exact?.id} fallback=${fallback?.id} count=${matchesTarget.size}"
+                    )
                     Result.success(exact ?: fallback)
                 }
             } catch (e: Exception) {
+                logDebug("findLinkByUrl failed: ${e.message}")
                 Result.failure(e)
             }
         }
@@ -193,5 +204,11 @@ class ShaarliClient(
             tags = tags,
             isPrivate = optBoolean("private")
         )
+    }
+
+    private fun logDebug(message: String) {
+        if (BuildConfig.DEBUG) {
+            Log.d("ShaarliClient", message)
+        }
     }
 }
