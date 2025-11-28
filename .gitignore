@@ -29,4 +29,4 @@ captures/
 /gradle-wrapper.jar
 
 # Server source code
-/Shaarli/
+Shaarli/

@@ -1,6 +1,10 @@
 # Shaarli Poster (Android)
 
-Early scaffolding for an Android app that shares links to a self-hosted Shaarli instance. The app is built with Kotlin, Jetpack Compose, and a minimal MVVM setup.
+Android app that shares links to a self-hosted Shaarli instance.
+
+## License
+
+- GNU GPL v3, see [LICENSE](LICENSE).
 
 ## Prerequisites
 - JDK 17
@@ -64,24 +68,5 @@ bash build.sh --build-only  # assumes deps/SDK/Gradle already installed
 
 ## Features
 - Encrypted settings (URL + Shaarli API secret) stored with Android Keystore.
-- Share flow with URL/title/description/tags/private toggle, title prefetch, offline draft saving, and retry for pending drafts.
+- Share flow with URL/title/description/tags/private toggle, title prefetch, and retry for pending drafts.
 - Simple status indicators for connection tests and posting attempts.
-- Shaarli API calls use JWT HS512 tokens generated from the configured API secret, sent as `Authorization: Bearer <token>` (and `jwt: <token>` for compatibility), per Shaarli API docs.
-
-## Google Play submission (high level)
-1) Create or reuse a signing key:
-   ```bash
-   keytool -genkeypair -v -keystore shaarli-poster.keystore -alias shaarli -keyalg RSA -keysize 4096 -validity 10000
-   ```
-2) Configure signing in `app/build.gradle.kts` (or via Android Studio) and enable Play App Signing.
-3) Build a release bundle:
-   ```bash
-   ./gradlew bundleRelease
-   ```
-4) Upload `app/build/outputs/bundle/release/app-release.aab` in the Play Console, create store listing, privacy policy, and roll out an internal test track before production.
-
-## Current state
-- Launcher + share intent plumbing with Compose UI for settings and share form.
-- Title prefill scaffolding using OkHttp with basic HTML parsing.
-- Tests for URL normalization, title prefill logic, and a basic UI existence check.
-- Posting/auth flows, persistence, offline queueing, and robust error handling still need implementation (see `todo.md`).
