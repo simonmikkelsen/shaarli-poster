@@ -1,20 +1,23 @@
 package com.shaarli.poster.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -22,9 +25,15 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.withStyle
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import com.shaarli.poster.data.model.ShaarliSettings
 import com.shaarli.poster.ui.ConnectionUiState
 import com.shaarli.poster.ui.ConnectionStatus
@@ -59,6 +68,13 @@ fun SettingsSection(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            if (settings.baseUrl.isBlank()) {
+                InfoBox(
+                    link = "https://github.com/shaarli/Shaarli",
+                    onLinkClick = { uriHandler.openUri(it) }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             Text(text = "Instance settings")
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedTextField(
@@ -98,7 +114,7 @@ fun SettingsSection(
                 Text(text = "Warning: HTTP is not secure; prefer HTTPS.")
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = "Tip: Find the REST API secret by going to your Shaarli, the menu Tools, Configure your Shaarli. Then check Enable REST API and copy the REST API secret from the field below it.")
+            Text(text = "Tip: Find the REST API secret by going to your Shaarli, the menu Tools, Configure your Shaarli. Then check Enable REST API and copy the REST API secret from the field below it. This app is not part of the officiel Shaarli project.")
             Spacer(modifier = Modifier.height(16.dp))
             Text(text = "Free software by Simon Mikkelsen", style = MaterialTheme.typography.bodyMedium)
             Text(
@@ -130,6 +146,38 @@ fun SettingsSection(
                         .height(300.dp)
                         .verticalScroll(scrollState)
                 )
+            }
+        )
+    }
+}
+
+@Composable
+private fun InfoBox(
+    link: String,
+    cornerRadius: Dp = 8.dp,
+    onLinkClick: (String) -> Unit
+) {
+    val annotated = buildAnnotatedString {
+        append("This app only works with a Shaarli installation. You can find the free Shaarli at ")
+        pushStringAnnotation(tag = "URL", annotation = link)
+        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) {
+            append(link)
+        }
+        pop()
+    }
+    Surface(
+        shape = RoundedCornerShape(cornerRadius),
+        color = Color(0xFFF2F2F2)
+    ) {
+        ClickableText(
+            text = annotated,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            onClick = { offset ->
+                annotated.getStringAnnotations("URL", offset, offset).firstOrNull()?.let {
+                    onLinkClick(it.item)
+                }
             }
         )
     }
