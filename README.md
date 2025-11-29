@@ -2,6 +2,21 @@
 
 Android app that shares links to a self-hosted Shaarli instance.
 
+## Testers needed - minimal work
+
+In order to get the app in Google Play store, I must recruit 12 people to test the app for 14 days.
+
+if you have an Shaarli instance it is very easy:
+
+ - Open the app and enter your URL and REST API key - the app tells you where to find it.
+ - Share a link to the app and see it will try to fetch the title.
+ - Post the link to your Shaarli.
+ - Share the same link to the app and see that it will fetch the info you entered..
+
+If you would like to help, please send me an e-mail to app at zip.dk
+
+Thank you
+
 ## License
 
 - GNU GPL v3, see [LICENSE](LICENSE).
